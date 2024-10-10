@@ -1,67 +1,143 @@
-const searchFormEl=document.querySelector("#search-form");
-const cityNameEl=document.querySelector("#city-name");
-const currentWeatherEl=document.querySelector("#current-weather");
-const fiveDayEl=document.querySelector("#five-day");
-const apiKey='43307f36c133c1b4d80feb3644b2ab3e';
+// Weather Dashboard JavaScript
 
-function searchCity(event){
-   event.preventDefault();
-   const cityName=cityNameEl.value;
-   populateCurrentWeather(cityName);
-   populdate5Day(cityName);
-   
+// API Configuration
+const API_KEY = '7db271b7136f70e4400fe45867137303'; // Use your provided API key
+let searchHistory = [];
+
+// DOM Elements
+const cityInput = document.getElementById('city-input');
+const searchBtn = document.getElementById('search-btn');
+const searchHistoryEl = document.getElementById('search-history');
+const currentWeather = document.getElementById('current-weather');
+const forecastContainer = document.getElementById('forecast-container');
+
+// Event Listeners
+searchBtn.addEventListener('click', handleSearch);
+cityInput.addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        handleSearch();
+    }
+});
+searchHistoryEl.addEventListener('click', handleHistoryClick);
+document.addEventListener('DOMContentLoaded', renderHistory);
+
+// Main Functions
+
+// Handle the search when the search button is clicked
+async function handleSearch() {
+    const city = cityInput.value.trim();
+    if (city) {
+        const weatherData = await getWeatherData(city);
+        if (weatherData) {
+            updateWeatherDisplay(weatherData);
+            addToSearchHistory(city);
+            cityInput.value = ''; // Clear the input field
+        }
+    }
 }
 
-function populateCurrentWeather(cityName){
-  const url=`https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${apiKey}&units=imperial`;
-
-  fetch(url)
-  .then(function(response){
-    return response.json();
-  })
-  .then(function(data){
-    currentWeatherEl.innerHTML=`<h3>${data.name} ( ${dayjs.unix(data.dt).format("MM/DD/YYYY") } ) <img src="https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png" alt="">
-                            </h3>
-                            <p> Temp: <span>${data.main.temp} °F</span> </p>
-                            <p> Wind: <span>12 MPH</span> </p>
-                            <p> Humidity: <span>47 %</span> </p>`;
-    console.log(data)
-
-  })
+// Handle clicks on the search history buttons
+function handleHistoryClick(event) {
+    if (event.target.classList.contains('history-btn')) {
+        cityInput.value = event.target.textContent;
+        handleSearch();
+    }
 }
 
-function populdate5Day(cityName){
-   const url=`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=imperial`;
+// Fetch weather data from the API
+async function getWeatherData(city) {
+    try {
+        // First, get coordinates for the city
+        const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${API_KEY}`;
+        const geoResponse = await fetch(geoUrl);
+        const geoData = await geoResponse.json();
+        console.log("Geo Data: ", geoData);
 
-   fetch(url)
-   .then(function(response){
-      return response.json();
-   })
-   .then(function(data){
-      console.log(data);
+        if (geoData.length === 0) {
+            throw new Error('City not found');
+        }
 
-      fiveDayEl.textContent="";
+        const { lat, lon } = geoData[0];
 
-      for(let i=3; i< data.list.length; i=i+8){
-          const forecast=data.list[i]
-         console.log(forecast)
-         fiveDayEl.innerHTML +=`  <div class="col-sm-2 mb-3 mb-sm-0">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">${dayjs.unix(forecast.dt).format("MM/DD/YYYY")  }</h5>
-                            <img src="https://openweathermap.org/img/wn/${forecast.weather[0].icon}@2x.png" alt="">
-                            <p> Temp: <span>71 °F</span> </p>
-                            <p> Wind: <span>12 MPH</span> </p>
-                            <p> Humidity: <span>47 %</span> </p>
-                        </div>
-                    </div>
-                </div>`
+        // Then, get 5 day / 3 hour forecast data using coordinates
+        const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${API_KEY}`;
+        const forecastResponse = await fetch(forecastUrl);
+        const forecastData = await forecastResponse.json();
+        console.log("Forecast Data: ", forecastData);
 
-      }
-   })
+        return forecastData;
+    } catch (error) {
+        console.error('Error fetching weather data:', error);
+        alert('Error fetching weather data. Please try again.');
+    }
 }
 
+// Update the weather display on the page
+function updateWeatherDisplay(data) {
+    const current = data.list[0];
+    currentWeather.innerHTML = `
+        <h2>${data.city.name} (${new Date(current.dt * 1000).toLocaleDateString()}) 
+            <img src="https://openweathermap.org/img/wn/${current.weather[0].icon}.png" alt="${current.weather[0].description}">
+        </h2>
+        <p>Temp: ${current.main.temp.toFixed(2)}°F</p>
+        <p>Wind: ${current.wind.speed.toFixed(2)} MPH</p>
+        <p>Humidity: ${current.main.humidity}%</p>
+    `;
 
-searchFormEl.addEventListener("submit", searchCity);
-populateCurrentWeather('Chicago');
-populdate5Day('Chicago')
+    // Update 5-day forecast
+    forecastContainer.innerHTML = ''; // Clear previous forecast
+    for (let i = 0; i < data.list.length; i += 8) { // Take one entry for each day (every 8th entry)
+        const day = data.list[i];
+        const forecastCard = document.createElement('div');
+        forecastCard.classList.add('col-12', 'col-md-4', 'mb-3'); // Responsive columns
+        forecastCard.innerHTML = `
+            <div class="card">
+                <div class="card-body">
+                    <h4>${new Date(day.dt * 1000).toLocaleDateString()}</h4>
+                    <img src="https://openweathermap.org/img/wn/${day.weather[0].icon}.png" alt="${day.weather[0].description}">
+                    <p>Temp: ${day.main.temp.toFixed(2)}°F</p>
+                    <p>Wind: ${day.wind.speed.toFixed(2)} MPH</p>
+                    <p>Humidity: ${day.main.humidity}%</p>
+                </div>
+            </div>
+        `;
+        forecastContainer.appendChild(forecastCard);
+    }
+}
+
+// Add a city to the search history
+function addToSearchHistory(city) {
+    // Check if the city already exists in the search history
+    if (!searchHistory.includes(city)) {
+        const historyBtn = document.createElement('button');
+        historyBtn.classList.add('history-btn', 'btn', 'btn-secondary', 'mb-2');
+        historyBtn.textContent = city;
+        searchHistory.unshift(city); // Add to the beginning of the array
+        
+        // Limit history to 8 items
+        if (searchHistory.length > 8) {
+            searchHistory.pop();
+        }
+        
+        localStorage.setItem("searchHistory", JSON.stringify(searchHistory));
+        searchHistoryEl.prepend(historyBtn);
+        
+        // Remove excess buttons if there are more than 8
+        while (searchHistoryEl.children.length > 8) {
+            searchHistoryEl.removeChild(searchHistoryEl.lastChild);
+        }
+    }
+}
+
+// Render search history from local storage
+function renderHistory() {
+    searchHistory = JSON.parse(localStorage.getItem("searchHistory")) || [];
+    searchHistoryEl.innerHTML = ''; // Clear existing buttons
+    
+    searchHistory.forEach(city => {
+        const historyBtn = document.createElement('button');
+        historyBtn.classList.add('history-btn', 'btn', 'btn-secondary', 'mb-2');
+        historyBtn.textContent = city;
+        searchHistoryEl.appendChild(historyBtn);
+    });
+}
