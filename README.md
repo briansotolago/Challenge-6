@@ -23,3 +23,7 @@ The Weather Dashboard is a web application that allows users to search for curre
 **Repo:**
 
 [Github Repo](https://github.com/briansotolago/Challenge-6)
+
+**Link of the web Page:**
+
+[Github Page](https://briansotolago.github.io/Challenge-6/)
